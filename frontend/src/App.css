@@ -1,0 +1,132 @@
+.App {
+  text-align: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+}
+
+.App-header {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.voice-control {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 30px;
+  border-radius: 20px;
+  margin: 30px 0;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+button {
+  background: linear-gradient(45deg, #ff6b6b, #feca57);
+  border: none;
+  padding: 15px 30px;
+  font-size: 1.2rem;
+  border-radius: 50px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.3);
+}
+
+.listening {
+  background: linear-gradient(45deg, #4ecdc4, #44a08d) !important;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(78, 205, 196, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 20px rgba(78, 205, 196, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(78, 205, 196, 0);
+  }
+}
+
+.status {
+  font-size: 1.3rem;
+  margin: 20px 0;
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  min-height: 25px;
+}
+
+.transcript {
+  font-size: 1.1rem;
+  font-style: italic;
+  opacity: 0.9;
+  margin-top: 10px;
+}
+
+.upload-section input {
+  display: block;
+  margin: 20px auto;
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  background: white;
+  font-size: 1rem;
+}
+
+.data-status {
+  background: rgba(0, 0, 0, 0.4);
+  padding: 20px;
+  border-radius: 15px;
+  margin: 20px 0;
+  text-align: left;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+  overflow-x: auto;
+}
+
+.commands {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 25px;
+  border-radius: 15px;
+  margin-top: 30px;
+}
+
+.commands ul {
+  text-align: left;
+  display: inline-block;
+}
+
+.commands li {
+  margin: 10px 0;
+  padding: 8px 15px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 25px;
+  list-style: none;
+}
+
+@media (max-width: 768px) {
+  h1 {
+    font-size: 2rem;
+  }
+  .voice-control {
+    padding: 20px;
+  }
+  button {
+    padding: 12px 25px;
+    font-size: 1rem;
+  }
+}

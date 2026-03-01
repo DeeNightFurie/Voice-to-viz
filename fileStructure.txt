@@ -1,0 +1,20 @@
+backend/
+├── main.py                 # FastAPI app [web:1]
+├── models.py              # Pydantic schemas
+├── auth.py                # JWT authentication  
+├── data_processor.py      # Data cleaning logic
+├── visualizer.py          # Plotly chart generation
+├── upload_handler.py      # File upload & validation
+└── requirements.txt       # Python dependencies
+
+frontend/
+├── public/
+│   └── index.html
+├── src/
+│   ├── App.js            # Main React app
+│   ├── VoiceController.js # Voice command handler
+│   ├── DataUploader.js
+│   ├── DataCleaner.js
+│   ├── Visualizer.js
+│   └── index.js
+└── package.json          # Node dependencies
