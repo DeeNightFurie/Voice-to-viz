@@ -339,6 +339,42 @@ self.max_file_size = 50 * 1024 * 1024  # Change to 50MB
 ## Environment Variables (Optional)
 
 For production deployment, create a `.env` file in the `backend/` directory:
+## Setup SECRET_KEY for JWT Authentication
+
+### What is SECRET_KEY?
+The **SECRET_KEY** is a secure random string used by **JWT (JSON Web Tokens)** to **encrypt and verify** authentication tokens. It ensures tokens can't be forged or tampered with.
+
+### Where to Find/Generate It
+
+**Option 1: Generate New Secure Key (Recommended)**
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+**Example output:** `a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0`
+
+**Option 2: Quick Start (Development Only)**
+The code already has a fallback: `"your-super-secret-key-change-in-production"`
+
+### How to Use It
+
+**Create `.env` file** in your `backend/` folder:
+```env
+SECRET_KEY=your_generated_key_here_from_above_command
+```
+
+### Test Credentials (already in `auth.py`)
+```
+Username: testuser
+Password: testpass123
+```
+
+### Updated auth.py Usage
+The code automatically loads from environment variable or uses fallback:
+```python
+SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key-change-in-production")
+```
+
+***********************************************************************************
 
 ```bash
 # backend/.env
