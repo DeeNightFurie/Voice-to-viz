@@ -70,8 +70,8 @@ voice-data-viz/
 
 ### Step 1: Clone the Repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/voice-data-viz.git
-cd voice-data-viz
+git clone https://github.com/DeeNightFurie/Voice-to-viz.git
+cd Voice-to-viz
 ```
 
 ### Step 2: Navigate to Backend Directory
