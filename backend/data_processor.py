@@ -1,3 +1,16 @@
+"""Purpose: Handles all data cleaning operations triggered by voice commands. Supports CSV/Excel, saves processed data as JSON for frontend visualization.
+
+Voice Commands Supported:
+
+"remove duplicates"
+
+"fill missing with mean [column]"
+
+"drop column [column]"
+
+"""
+
+
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, List
