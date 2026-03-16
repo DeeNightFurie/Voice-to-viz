@@ -7,6 +7,9 @@ function App() {
   const [transcript, setTranscript] = useState("");
   const [status, setStatus] = useState("Ready");
   const [dataStatus, setDataStatus] = useState({});
+  const [previewRows, setPreviewRows] = useState([]);
+  const [previewColumns, setPreviewColumns] = useState([]);
+  const [charts, setCharts] = useState({});
   const recognitionRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -62,6 +65,74 @@ function App() {
     }
   };
 
+  // --- Helper: fetch status ---
+  const fetchStatus = async () => {
+    setStatus("🔄 Checking data status...");
+    const res = await fetch("http://localhost:8000/data/status");
+    const data = await res.json();
+    setDataStatus(data);
+    if (data.loaded) {
+      setStatus(
+        `✅ Data loaded: ${data.filename} (${data.shape?.[0] || 0} rows)`,
+      );
+    } else {
+      setStatus('📭 No data loaded yet. Say "upload data" first.');
+    }
+  };
+
+  // --- Helper: fetch preview ---
+  const fetchPreview = async () => {
+    const res = await fetch("http://localhost:8000/data/preview");
+    const data = await res.json();
+    if (data.success) {
+      setPreviewRows(data.rows);
+      setPreviewColumns(data.columns || []);
+      setStatus("👀 Showing cleaned data preview");
+    } else {
+      setStatus(data.message || "No data to preview");
+    }
+  };
+
+  // --- Helper: visualize data (all charts) ---
+  const visualizeAll = async () => {
+    setStatus("📊 Generating all charts...");
+    const res = await fetch("http://localhost:8000/visualize", {
+      method: "POST",
+    });
+    const data = await res.json();
+    if (data.success) {
+      setCharts(data.charts || {});
+      setStatus("✅ All charts generated! Scroll down to see.");
+    } else {
+      setStatus(data.message || "Visualization failed");
+    }
+  };
+
+  // --- Helper: download cleaned data ---
+  const downloadCleaned = async () => {
+    try {
+      setStatus("⬇️ Preparing cleaned data download...");
+      const res = await fetch("http://localhost:8000/data/download");
+      if (!res.ok) {
+        const err = await res.json();
+        setStatus(`❌ ${err.message || "Download failed"}`);
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "cleaned_data.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      setStatus("✅ Cleaned data downloaded");
+    } catch (err) {
+      setStatus(`❌ Download error: ${err.message}`);
+    }
+  };
+
   // --- Voice command handler ---
   const handleVoiceCommand = async (command) => {
     const c = command.toLowerCase();
@@ -81,18 +152,7 @@ function App() {
         c.includes("check data") ||
         c.includes("check status")
       ) {
-        setStatus("🔄 Checking data status...");
-        const res = await fetch("http://localhost:8000/data/status");
-        const data = await res.json();
-        setDataStatus(data);
-
-        if (data.loaded) {
-          setStatus(
-            `✅ Data loaded: ${data.filename} (${data.shape?.[0] || 0} rows)`,
-          );
-        } else {
-          setStatus('📭 No data loaded yet. Say "upload data" first.');
-        }
+        await fetchStatus();
         return;
       }
 
@@ -104,27 +164,34 @@ function App() {
           { method: "POST" },
         );
         const result = await res.json();
-
         if (result.success) {
           setStatus(
-            `✅ Removed ${result.removed || 0} duplicates. Say "status" to check.`,
+            `✅ Removed ${result.removed || 0} duplicates. Saying "status" and showing preview.`,
           );
+          await fetchStatus();
+          await fetchPreview();
         } else {
           setStatus(`❌ ${result.message || "Clean failed"}`);
         }
         return;
       }
 
-      // Unknown command
+      // 4) REPRESENT DATA (visualize all)
+      if (c.includes("represent") && c.includes("data")) {
+        await visualizeAll(); // generate bar, line, pie, scatter, histogram
+        await fetchPreview(); // refresh preview
+        return;
+      }
+
       setStatus(
-        `❓ Unknown command "${c}". Try: "upload data", "status", "remove duplicates".`,
+        `❓ Unknown command "${c}". Try: "upload data", "status", "remove duplicates", "represent data".`,
       );
     } catch (err) {
       setStatus(`❌ Error: ${err.message}`);
     }
   };
 
-  // --- File upload handler (upload + auto-load in backend) ---
+  // --- File upload handler ---
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -142,11 +209,13 @@ function App() {
 
       if (result.auto_loaded) {
         setStatus(
-          `✅ ${file.name} uploaded & loaded! Say "status" to check the data.`,
+          `✅ ${file.name} uploaded & loaded! Saying "status" and showing preview.`,
         );
+        await fetchStatus();
+        await fetchPreview();
       } else {
         setStatus(
-          `✅ ${file.name} uploaded. Now call "status" to see if data loaded.`,
+          `✅ ${file.name} uploaded. Now say "status" to check and "represent data" to visualize.`,
         );
       }
     } catch (error) {
@@ -186,19 +255,76 @@ function App() {
           />
         </div>
 
-        {/* Status JSON */}
+        {/* Data Status */}
         {Object.keys(dataStatus).length > 0 && (
-          <pre className="data-status">
-            {JSON.stringify(dataStatus, null, 2)}
-          </pre>
+          <div className="data-status">
+            <h3>Data Status</h3>
+            <pre>{JSON.stringify(dataStatus, null, 2)}</pre>
+          </div>
         )}
 
+        {/* Cleaned Data Preview */}
+        {previewRows.length > 0 && (
+          <div className="preview">
+            <h3>Cleaned Data Preview</h3>
+            <table>
+              <thead>
+                <tr>
+                  {previewColumns.map((col) => (
+                    <th key={col}>{col}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {previewRows.map((row, idx) => (
+                  <tr key={idx}>
+                    {previewColumns.map((col) => (
+                      <td key={col}>{row[col]}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Visualization gallery: bar, line, pie, scatter, histogram */}
+        {Object.keys(charts).length > 0 && (
+          <div className="charts-gallery">
+            <h3>📊 All Visualizations</h3>
+            <div className="chart-grid">
+              {Object.entries(charts).map(([type, url]) => (
+                <div key={type} className="chart-item">
+                  <h4>{type.charAt(0).toUpperCase() + type.slice(1)}</h4>
+                  <iframe
+                    src={`http://localhost:8000${url}`}
+                    title={`${type} chart`}
+                    width="100%"
+                    height="250"
+                    frameBorder="0"
+                    style={{ borderRadius: "8px" }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Download button */}
+        <div style={{ marginTop: "20px" }}>
+          <button onClick={downloadCleaned}>
+            ⬇️ Download Cleaned Data (CSV)
+          </button>
+        </div>
+
+        {/* Help */}
         <div className="commands">
           <h4>Say:</h4>
           <ul>
-            <li>"upload data" → Open file picker & upload</li>
+            <li>"upload data" → Upload & load</li>
             <li>"status" → Check data status</li>
-            <li>"remove duplicates" → Clean data</li>
+            <li>"remove duplicates" → Clean data & refresh preview</li>
+            <li>"represent data" → Bar, line, pie, scatter, histogram</li>
           </ul>
         </div>
       </header>

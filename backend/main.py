@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
 from data_processor import processor
 from upload_handler import uploader
 from visualizer import viz_engine
@@ -71,6 +72,64 @@ def remove_duplicates():
     if result.get("success"):
         processor.save_processed()
     return result
+
+
+@app.get("/data/preview")
+def data_preview(rows: int = 5):
+    """Preview current (cleaned) data"""
+    if processor.data is None:
+        return {"success": False, "message": "No data loaded", "rows": []}
+    return {
+        "success": True,
+        "rows": processor.get_preview(rows),
+        "columns": list(processor.data.columns),
+    }
+
+
+@app.post("/visualize")
+def visualize_data(chart_type: str = "bar"):
+    """
+    Voice: 'represent data'
+    chart_type: bar | line | pie | scatter | histogram
+    """
+    status = processor.get_status()
+    if not status["loaded"]:
+        return {"success": False, "message": "No data loaded"}
+
+    # Ensure latest cleaned JSON exists
+    data_file = processor.save_processed()
+    # Use visualizer to generate chart HTML
+    result = viz_engine.create_chart(
+        data_file,
+        {
+            "viz_type": chart_type,
+            "x_column": status["columns"][0] if status["columns"] else None,
+            "y_column": status["columns"][1] if len(status["columns"]) > 1 else None,
+            "title": "Data Visualization",
+        },
+    )
+    return result
+
+
+@app.get("/data/download")
+def download_cleaned_data():
+    """Download cleaned data as CSV (not chart)"""
+    if processor.data is None:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "message": "No data loaded"},
+        )
+
+    # Save to a temp CSV
+    filename = processor.filename or "cleaned_data"
+    csv_path = os.path.join("processed_data", f"{filename}_cleaned.csv")
+    processor.data.to_csv(csv_path, index=False)
+
+    return FileResponse(
+        csv_path,
+        media_type="text/csv",
+        filename=f"{filename}_cleaned.csv",
+    )
 
 
 if __name__ == "__main__":
