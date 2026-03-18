@@ -1,91 +1,103 @@
-"""Purpose: Creates interactive Plotly charts from cleaned data. Generates HTML files served to frontend. Supports all major chart types via voice commands.
-
-Supported Voice Viz Commands:
-
-"show bar chart [x_column] [y_column]"
-
-"show line chart [x_column] [y_column]"
-
-"show pie chart [x_column] [y_column]"
-
-etc."""
+"""Purpose: Creates interactive Plotly charts from cleaned data. Generates HTML files served to frontend."""
 
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
 import json
 import os
+import uuid
 from typing import Dict, Any
 from pathlib import Path
-from models import VizType 
 
 class Visualizer:
     def __init__(self):
         self.viz_path = "visualizations/"
         os.makedirs(self.viz_path, exist_ok=True)
     
-    def create_chart(self, data_file: str, viz_request: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate Plotly chart based on voice command"""
+    def create_chart(self, chart_type: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
         try:
-            # Load processed data
-            with open(data_file, 'r') as f:
-                data_info = json.load(f)
+            from data_processor import processor
+            if processor.data is None or processor.data.empty:
+                return {'success': False, 'error': 'No data loaded'}
             
+            processor.save_processed()
+            
+            # ✅ FORCE SAFE DataFrame
+            data_info = json.load(open(processor.processed_file))
             df = pd.DataFrame(data_info['data'])
             
-            # Create chart based on viz_type
-            fig = self._generate_figure(df, viz_request)
+            if df.empty:
+                return {'success': False, 'error': 'Empty dataframe'}
             
-            # Save HTML chart
-            chart_file = f"{self.viz_path}{Path(data_file).stem}_chart.html"
-            fig.write_html(chart_file)
+            fig = self._generate_figure(df, chart_type, params)
+            
+            # ✅ Guaranteed unique filename
+            chart_uuid = uuid.uuid4().hex[:8]
+            chart_filename = f"{processor.filename}_{chart_type}_{chart_uuid}.html"
+            chart_file = os.path.join(self.viz_path, chart_filename)
+            
+            fig.write_html(chart_file, include_plotlyjs='cdn')
+            print(f"✅ CHART CREATED: http://localhost:8000/visualizations/{chart_filename}")
             
             return {
                 'success': True,
-                'chart_url': f"/visualizations/{Path(chart_file).name}",
-                'chart_data': self._fig_to_json(fig)
+                'chart_url': f"/visualizations/{chart_filename}",
+                'chart_type': chart_type
             }
         except Exception as e:
-            return {'success': False, 'error': str(e)}
+            print(f"❌ FULL ERROR: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+            return {'success': False, 'error': f'{type(e).__name__}: {str(e)}'}
     
-    def _generate_figure(self, df: pd.DataFrame, request: Dict[str, Any]) -> go.Figure:
-        """Generate specific chart type"""
-        viz_type = request.get('viz_type', 'bar')
-        x_col = request['x_column']
-        y_col = request.get('y_column')
-        title = request.get('title', 'Data Visualization')
+    def _generate_figure(self, df: pd.DataFrame, chart_type: str, params: Dict[str, Any]) -> go.Figure:
+        """✅ BULLETPROOF - NO DataFrame truth checks"""
+        cols = df.columns.tolist()
+        x_idx = 0 if len(cols) > 0 else None
+        y_idx = 1 if len(cols) > 1 else None
+        x_col = cols[x_idx] if x_idx is not None else cols[0]
+        y_col = cols[y_idx] if y_idx is not None else None
         
-        if viz_type == 'bar':
-            fig = px.bar(df, x=x_col, y=y_col, title=title)
-        elif viz_type == 'line':
-            fig = px.line(df, x=x_col, y=y_col, title=title)
-        elif viz_type == 'pie':
-            fig = px.pie(df, names=x_col, values=y_col, title=title)
-        elif viz_type == 'scatter':
-            fig = px.scatter(df, x=x_col, y=y_col, title=title)
-        elif viz_type == 'histogram':
-            fig = px.histogram(df, x=x_col, title=title)
-        else:
-            fig = px.bar(df, x=x_col, y=y_col, title=title)
+        title = params.get('title', f"{chart_type.title()} Chart ({len(df)} rows)")
+        print(f"📊 {chart_type}: x={x_col}, y={y_col}, shape={df.shape}")
         
-        fig.update_layout(
-            height=500,
-            showlegend=True,
-            font=dict(size=12)
-        )
-        
-        return fig
-    
-    def _fig_to_json(self, fig: go.Figure) -> str:
-        """Convert figure to JSON for frontend"""
-        return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+        try:
+            if chart_type == 'bar':
+                if y_col is not None and y_col in cols:
+                    fig = px.bar(df, x=x_col, y=y_col, title=title)
+                else:
+                    fig = px.bar(df, x=x_col, title=title)
+            elif chart_type == 'line':
+                if y_col is not None and y_col in cols:
+                    fig = px.line(df, x=x_col, y=y_col, title=title)
+                else:
+                    fig = px.line(df, x=x_col, title=title)
+            elif chart_type == 'pie':
+                if y_col is not None and y_col in cols:
+                    fig = px.pie(df, names=x_col, values=y_col, title=title)
+                else:
+                    fig = px.pie(df, names=x_col, title=title)
+            elif chart_type == 'scatter':
+                if y_col is not None and y_col in cols:
+                    fig = px.scatter(df, x=x_col, y=y_col, title=title)
+                else:
+                    fig = px.scatter(df, x=x_col, title=title)
+            elif chart_type == 'histogram':
+                fig = px.histogram(df, x=x_col, title=title)
+            else:
+                fig = px.bar(df, x=x_col, title="Default Chart")
+            
+            fig.update_layout(
+                height=350, width=400,
+                showlegend=True,
+                font_size=11,
+                margin=dict(l=30, r=30, t=30, b=30)
+            )
+            return fig
+        except Exception as e:
+            print(f"❌ Plotly error: {e}")
+            # Fallback bar chart
+            fig = px.bar(df.head(10), x=cols[0] if cols else "x", y=cols[1] if len(cols)>1 else "y", title="Fallback Chart")
+            return fig
 
-    def list_charts(self) -> list:
-        """List available visualizations"""
-        charts = []
-        for file in Path(self.viz_path).glob("*.html"):
-            charts.append(file.name)
-        return charts
-
-# Global visualizer instance
 viz_engine = Visualizer()

@@ -13,11 +13,64 @@ function App() {
   const recognitionRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // --- Voice setup ---
+  // --- MOVED UP: handleVoiceCommand FIRST ---
+  const handleVoiceCommand = async (command) => {
+    const c = command.toLowerCase();
+    setStatus(`Processing: "${c}"`);
+
+    try {
+      if (c.includes("upload") && c.includes("data")) {
+        setStatus('📁 "upload data" detected → choose a file');
+        fileInputRef.current?.click();
+        return;
+      }
+
+      if (
+        c.includes("status") ||
+        c.includes("check data") ||
+        c.includes("check status")
+      ) {
+        await fetchStatus();
+        return;
+      }
+
+      if (c.includes("remove") && c.includes("duplicates")) {
+        setStatus("🧹 Removing duplicates...");
+        const res = await fetch(
+          "http://localhost:8000/clean/remove-duplicates",
+          { method: "POST" },
+        );
+        const result = await res.json();
+        if (result.success) {
+          setStatus(
+            `✅ Removed ${result.removed || 0} duplicates. Saying "status" and showing preview.`,
+          );
+          await fetchStatus();
+          await fetchPreview();
+        } else {
+          setStatus(`❌ ${result.message || "Clean failed"}`);
+        }
+        return;
+      }
+
+      if (c.includes("represent") && c.includes("data")) {
+        await visualizeAll();
+        await fetchPreview();
+        return;
+      }
+
+      setStatus(
+        `❓ Unknown command "${c}". Try: "upload data", "status", "remove duplicates", "represent data".`,
+      );
+    } catch (err) {
+      setStatus(`❌ Error: ${err.message}`);
+    }
+  };
+
+  // --- NOW useEffect works ---
   useEffect(() => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
-
     if (!SpeechRecognition) {
       setStatus("❌ Voice recognition not supported in this browser");
       return;
@@ -32,7 +85,7 @@ function App() {
       const command = event.results[0][0].transcript.toLowerCase().trim();
       setTranscript(command);
       setStatus(`🗣️ Heard: "${command}"`);
-      handleVoiceCommand(command);
+      handleVoiceCommand(command); // ✅ Now defined
     };
 
     recognitionRef.current.onerror = () => {
@@ -43,7 +96,7 @@ function App() {
     recognitionRef.current.onend = () => {
       setIsListening(false);
     };
-  }, []);
+  }, []); // ✅ Empty deps - function now hoisted
 
   const startListening = useCallback(() => {
     if (recognitionRef.current && !isListening) {
@@ -65,7 +118,7 @@ function App() {
     }
   };
 
-  // --- Helper: fetch status ---
+  // --- Helper functions (order doesn't matter now) ---
   const fetchStatus = async () => {
     setStatus("🔄 Checking data status...");
     const res = await fetch("http://localhost:8000/data/status");
@@ -80,7 +133,6 @@ function App() {
     }
   };
 
-  // --- Helper: fetch preview ---
   const fetchPreview = async () => {
     const res = await fetch("http://localhost:8000/data/preview");
     const data = await res.json();
@@ -93,10 +145,9 @@ function App() {
     }
   };
 
-  // --- Helper: visualize data (all charts) ---
   const visualizeAll = async () => {
     setStatus("📊 Generating all charts...");
-    const res = await fetch("http://localhost:8000/visualize", {
+    const res = await fetch("http://localhost:8000/visualize/all", {
       method: "POST",
     });
     const data = await res.json();
@@ -108,7 +159,6 @@ function App() {
     }
   };
 
-  // --- Helper: download cleaned data ---
   const downloadCleaned = async () => {
     try {
       setStatus("⬇️ Preparing cleaned data download...");
@@ -133,65 +183,6 @@ function App() {
     }
   };
 
-  // --- Voice command handler ---
-  const handleVoiceCommand = async (command) => {
-    const c = command.toLowerCase();
-    setStatus(`Processing: "${c}"`);
-
-    try {
-      // 1) UPLOAD DATA
-      if (c.includes("upload") && c.includes("data")) {
-        setStatus('📁 "upload data" detected → choose a file');
-        fileInputRef.current?.click();
-        return;
-      }
-
-      // 2) STATUS
-      if (
-        c.includes("status") ||
-        c.includes("check data") ||
-        c.includes("check status")
-      ) {
-        await fetchStatus();
-        return;
-      }
-
-      // 3) REMOVE DUPLICATES
-      if (c.includes("remove") && c.includes("duplicates")) {
-        setStatus("🧹 Removing duplicates...");
-        const res = await fetch(
-          "http://localhost:8000/clean/remove-duplicates",
-          { method: "POST" },
-        );
-        const result = await res.json();
-        if (result.success) {
-          setStatus(
-            `✅ Removed ${result.removed || 0} duplicates. Saying "status" and showing preview.`,
-          );
-          await fetchStatus();
-          await fetchPreview();
-        } else {
-          setStatus(`❌ ${result.message || "Clean failed"}`);
-        }
-        return;
-      }
-
-      // 4) REPRESENT DATA (visualize all)
-      if (c.includes("represent") && c.includes("data")) {
-        await visualizeAll(); // generate bar, line, pie, scatter, histogram
-        await fetchPreview(); // refresh preview
-        return;
-      }
-
-      setStatus(
-        `❓ Unknown command "${c}". Try: "upload data", "status", "remove duplicates", "represent data".`,
-      );
-    } catch (err) {
-      setStatus(`❌ Error: ${err.message}`);
-    }
-  };
-
-  // --- File upload handler ---
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -225,12 +216,12 @@ function App() {
     }
   };
 
+  // --- JSX (unchanged) ---
   return (
     <div className="App">
       <header className="App-header">
         <h1>🎤 Voice Data Viz</h1>
 
-        {/* Voice Control */}
         <div className="voice-control">
           <button
             onClick={isListening ? stopListening : startListening}
@@ -242,7 +233,6 @@ function App() {
           <div className="transcript">Heard: "{transcript}"</div>
         </div>
 
-        {/* Upload */}
         <div className="upload-section">
           <h3>📁 Upload CSV/Excel</h3>
           <input
@@ -255,7 +245,6 @@ function App() {
           />
         </div>
 
-        {/* Data Status */}
         {Object.keys(dataStatus).length > 0 && (
           <div className="data-status">
             <h3>Data Status</h3>
@@ -263,7 +252,6 @@ function App() {
           </div>
         )}
 
-        {/* Cleaned Data Preview */}
         {previewRows.length > 0 && (
           <div className="preview">
             <h3>Cleaned Data Preview</h3>
@@ -288,7 +276,6 @@ function App() {
           </div>
         )}
 
-        {/* Visualization gallery: bar, line, pie, scatter, histogram */}
         {Object.keys(charts).length > 0 && (
           <div className="charts-gallery">
             <h3>📊 All Visualizations</h3>
@@ -310,14 +297,12 @@ function App() {
           </div>
         )}
 
-        {/* Download button */}
         <div style={{ marginTop: "20px" }}>
           <button onClick={downloadCleaned}>
             ⬇️ Download Cleaned Data (CSV)
           </button>
         </div>
 
-        {/* Help */}
         <div className="commands">
           <h4>Say:</h4>
           <ul>

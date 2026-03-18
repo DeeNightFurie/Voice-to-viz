@@ -85,30 +85,37 @@ def data_preview(rows: int = 5):
         "columns": list(processor.data.columns),
     }
 
-
-@app.post("/visualize")
-def visualize_data(chart_type: str = "bar"):
-    """
-    Voice: 'represent data'
-    chart_type: bar | line | pie | scatter | histogram
-    """
+@app.post("/visualize/all")
+async def visualize_all():
+    print("🔍 DEBUG: visualize_all START")
     status = processor.get_status()
+    print(f"🔍 DEBUG: status = {status}")
+    
     if not status["loaded"]:
         return {"success": False, "message": "No data loaded"}
 
-    # Ensure latest cleaned JSON exists
-    data_file = processor.save_processed()
-    # Use visualizer to generate chart HTML
-    result = viz_engine.create_chart(
-        data_file,
-        {
-            "viz_type": chart_type,
+    processor.save_processed()
+    print(f"🔍 DEBUG: processed_file = '{getattr(processor, 'processed_file', 'MISSING')}'")
+    print(f"🔍 DEBUG: visualizations/ exists? {os.path.exists('visualizations/')}")
+    
+    chart_types = ["bar", "line", "pie", "scatter", "histogram"]
+    charts = {}
+
+    for chart_type in chart_types:
+        print(f"\n🔍 DEBUG: Creating {chart_type}...")
+        result = viz_engine.create_chart(chart_type, {
             "x_column": status["columns"][0] if status["columns"] else None,
             "y_column": status["columns"][1] if len(status["columns"]) > 1 else None,
-            "title": "Data Visualization",
-        },
-    )
-    return result
+            "title": f"{chart_type.title()} Chart"
+        })
+        print(f"🔍 DEBUG: {chart_type} RESULT = {result}")
+        if result["success"]:
+            charts[chart_type] = result["chart_url"]
+        else:
+            print(f"🔍 DEBUG: {chart_type} FAILED: {result.get('error', 'No error msg')}")
+
+    print(f"🔍 DEBUG: FINAL charts = {charts}")
+    return {"success": True, "charts": charts}
 
 
 @app.get("/data/download")
@@ -119,6 +126,7 @@ def download_cleaned_data():
             status_code=400,
             content={"success": False, "message": "No data loaded"},
         )
+
 
     # Save to a temp CSV
     filename = processor.filename or "cleaned_data"
